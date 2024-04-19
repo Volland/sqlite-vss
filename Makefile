@@ -2,6 +2,10 @@ SHELL := /bin/bash
 VERSION=$(shell cat VERSION)
 CMAKE_VERSION=$(shell sed 's/-alpha//g' VERSION)
 
+CFLAGS += -Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include
+CXXFLAGS += -Xpreprocessor -fopenmp -I/opt/homebrew/opt/libomp/include
+LDFLAGS += -L/opt/homebrew/opt/libomp/lib -lomp 
+
 ifeq ($(shell uname -s),Darwin)
 CONFIG_DARWIN=y
 else ifeq ($(OS),Windows_NT)
@@ -30,6 +34,36 @@ RENAME_WHEELS_ARGS=--is-macos-arm
 else
 RENAME_WHEELS_ARGS=
 endif
+
+ifdef IOS_TARGET
+CI_MAYBE_TARGET=$(IOS_TARGET)
+rs_build_flags = -Zbuild-std
+ifeq ($(or $(findstring sim,$(CI_MAYBE_TARGET)),$(findstring x86_64,$(CI_MAYBE_TARGET))),)
+    sysroot_option = -isysroot $(shell xcrun --sdk iphoneos --show-sdk-path)
+    arch_flags = -arch arm64 -mios-version-min=12.0
+else
+    sysroot_option = -isysroot $(shell xcrun --sdk iphonesimulator --show-sdk-path)
+    arch_flags = -arch x86_64 -mios-simulator-version-min=12.0
+endif
+TARGET_LOADABLE_IOS=$(prefix)/release/vss0_ios.$(LOADABLE_EXTENSION)
+$(TARGET_LOADABLE_IOS): $(prefix) src/sqlite-vss.cpp src/sqlite-vector.cpp src/sqlite-vss.h.in
+	$(CC) $(arch_flags) $(sysroot_option) -shared -o $@ $^
+endif
+
+ifdef ANDROID_TARGET
+CI_MAYBE_TARGET=$(ANDROID_TARGET)
+NDK=$(ANDROID_NDK_HOME)
+LOADABLE_EXTENSION=so
+CC=$(NDK)/toolchains/llvm/prebuilt/$(NDK_HOSTARCH)/bin/clang
+rs_ndk=ndk -t $(ANDROID_TARGET)
+ANDROID_API_VERSION=33
+rs_build_flags=-Zbuild-std
+sysroot_option=--sysroot=$(NDK)/toolchains/llvm/prebuilt/$(NDK_HOSTARCH)/sysroot
+TARGET_LOADABLE_ANDROID=$(prefix)/release/vss0_android.$(LOADABLE_EXTENSION)
+$(TARGET_LOADABLE_ANDROID): $(prefix) src/sqlite-vss.cpp src/sqlite-vector.cpp src/sqlite-vss.h.in
+    $(CC) --target=$(ANDROID_TARGET)$(ANDROID_API_VERSION) $(sysroot_option) -shared -o $@ $^
+endif
+
 
 prefix=dist
 
@@ -113,7 +147,7 @@ $(TARGET_WHEELS_RELEASE): $(prefix)
 
 
 loadable: $(TARGET_LOADABLE)
-loadable-release: $(TARGET_LOADABLE_RELEASE)
+loadable-release: $(TARGET_LOADABLE_RELEASE) $(TARGET_LOADABLE_IOS)
 
 static: $(TARGET_STATIC)
 static-release: $(TARGET_STATIC_RELEASE)

@@ -28,6 +28,11 @@ link_directories(BEFORE vendor/sqlite)
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory(vendor/json)
 
+set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp")
+set(OpenMP_C_LIB_NAMES "omp")
+set(OpenMP_CXX_FLAGS "-Xpreprocessor -fopenmp")
+set(OpenMP_CXX_LIB_NAMES "omp")
+
 # ================================== sqlite-vector ================================== #
 add_library(sqlite-vector SHARED src/sqlite-vector.cpp)
 target_link_libraries(sqlite-vector sqlite3)
